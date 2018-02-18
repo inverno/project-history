@@ -1,43 +1,57 @@
-[cc,mc,l,expr,funcs] = textread('stats.csv',"%f, %f, %f, %f, %s");
+function [code, ranges, changesPerCC, aggregatedChanges, aggregatedFunctions] = analysis(project, aggSize)
 
-functions = unique(funcs);
+  [cc,mc,l,expr,funcs] = textread(strcat(project,'stats.csv'),"%f, %f, %f, %f, %s");
+  [cog,expre] = textread(strcat(project,'cognitive_distribution.csv'),"%f,%f");
 
-funcIds = zeros(size(funcs,1),1);
-functionIds = 1 : size(functions,1);
-for fId = functionIds
-  funcIdxs = strmatch(functions{fId}, funcs);
-  funcIds(funcIdxs,1) = fId;
-endfor
+  functions = unique(funcs);
+  
+  ccn = cc ./ expr;
+  mcn = mc ./ expr;
 
-groups = funcIds == functionIds;
+  funcIds = zeros(size(funcs,1),1);
+  functionIds = 1 : size(functions,1);
+  for fId = functionIds
+    funcIdxs = strmatch(functions{fId}, funcs);
+    funcIds(funcIdxs,1) = fId;
+  endfor
 
-ccT = cc' * groups;
-exprT = expr' * groups;
+  groups = funcIds == functionIds; % m = changes n= functions
 
-counts = sum(groups,1);
+  functionCCs = cc' * groups; % cumulated CC of every function
 
-avgs = ccT ./ counts;
+  mcT = mc' * groups;
 
-lowerBounds = [0,0.5:19.5];
-upperBounds = [0.5:20.5];
+  exprT = expr' * groups;
+
+  changes = sum(groups,1); % changes per Function
+
+  avgs = functionCCs ./ changes; % avg CC of every function
+
+  avgsMc = mcT ./ changes;
+
+  lowerBounds = [0,0.5:1:(aggSize - 0.5)];
+  upperBounds = [0.5:1:(aggSize + 0.5)];
 
 
-aggregations = (avgs' < upperBounds) .* (avgs' >= lowerBounds);
+  aggregations = (avgs' < upperBounds) .* (avgs' >= lowerBounds); % which function falls in which CC range
 
-aggregatedFunctions = sum(aggregations,1);
+  aggregatedFunctions = sum(aggregations,1); % how many functions fall in which CC range
 
-aggregatedCounts = sum(counts' .* aggregations ,1);
+  aggregatedChanges = sum(changes' .* aggregations ,1); % how many function changes fall in which CC range
 
-aggregatedExpressions = (sum(exprT' .* aggregations, 1) ./ sum(sum(exprT))) .* 100;
+  aggregatedExpressions = (sum(exprT' .* aggregations, 1) ./ sum(expr));
 
-countPerFunction = aggregatedCounts ./ aggregatedFunctions;
+  ranges = [0:1:aggSize];
 
-cpfN = countPerFunction ./ aggregatedExpressions;
+  ccAggregations = (cc < upperBounds) .* (cc >= lowerBounds);
+  changesPerCC = sum(ccAggregations,1);
+  
+  expPerCC = expre' * (cog == ranges);
+  
+  code = expPerCC
 
-ranges = [0:20];
+  safeChanges = changesPerCC .* (expPerCC > 0);
+  
+  code = code;
 
-plot(ranges,countPerFunction,"-.r",ranges,aggregatedExpressions,"-.k",ranges,cpfN,"-.m");
-
-% plot(0:19,countPerFunction, 0:19, aggregatedFunctions, 0:19, countPerFunction' .* (0:19)');
-
-% plot(1:20,aggregatedCounts',1:20,aggregatedCounts' .* (0:19)',1:20,aggregatedFunctions);
+endfunction
